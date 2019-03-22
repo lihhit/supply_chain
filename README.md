@@ -1,4 +1,5 @@
-# hello-world
-I am a software engineer,
-I would like to be more professional on the field of software.
-I want to meet someone who has some great ideal, and develop together.
+# Supply_chain
+Object: girlfriend's thesis
+Language: python
+Algorithm：DP, genetic algorithm, Ant colony optimization algorithms
+
