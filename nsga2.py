@@ -3,21 +3,26 @@
 """
 背景：
 
-假定F公司需要采购某一种产品，总的需求量D是20000-22000,
-目前有三个供应商可供选择，忽略这三个供应商的优劣等级，
-三个供应商的供货能力如下表所示：
+假定F公司需要采购某一种产品，总的需求量D是200-250,
+目前有5个供应商可供选择，忽略这5个供应商的优劣等级，
+5个供应商的供货能力如下表所示：
 
-供应商i	运输费用o	产品单价p	废品率q(%)	最大供货量d
-1	    1	        5	        5	        5000
-2	    0.5	        7	        2	        15000
-3	    1.2	        4	        9	        3000
+供应商i	运输费用o_i	产品单价p_i	废品率q_i(%)	最大供货量d_i	交货期
+1	15	5	5	50	10
+2	10	5	5	90	5
+3	6	4	10	70	8
+4	5	10	10	80	3
+5	4	2	10	70	8
 
-假设从三家供应商购买产品的数量分别为：x_1,x_2,x_3,可以得到两个目标函数：
-    成本目标函数：Z_1=6x_1+7.5x_2+5.2x_3
-    废品率目标函数：Z_2=0.05x_1+0.02x_2+0.09x_3
+
+
+假设从5家供应商购买产品的数量分别为：x_1,x_2,x_3,x_4,x_5,可以得到3个目标函数：
+    成本目标函数：Z_1=15y_1+10y_2+6y_3+5y_4+4y_5+ 5x_1+5x_2+4x_3+10x_4+10x_5
+    废品率目标函数： Z_2= 0.05x_1+0.05x_2+0.1x_3+0.1x_4+0.1x_5
+    交货期目标函数：Z_3= 10x_1+5x_2+8x_3+3x_4+8x_5
 约束条件：
-    20000<=x_1+x_2+x_3<=22000
-    x_1<=5000, x_2<=15000, x_3<=3000
+    200≤x_1+x_2+x_3+x_4+x_5≤250
+    x_1≤50,x_2≤90,x_3≤70,x_4≤80,x_5≤70
 
 NSGA2算法实现：
 1、随机产生初始种群，做二进制编码
@@ -30,18 +35,22 @@ NSGA2算法实现：
 import random as rn
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D as p3d
+
 
 def individual_from_values_to_gene(values):
     gene = []
     for i in range(len(values)):
-        gene = gene + [int(x) for x in '{:016b}'.format(values[i])]
+        gene = gene + [int(x) for x in '{:08b}'.format(values[i])]
     return gene
 
 def individual_from_gene_to_value(gene):
     values=[]
-    values.append(int("".join(str(i) for i in gene[:16]), 2))
-    values.append(int("".join(str(i) for i in gene[16:32]), 2))
-    values.append(int("".join(str(i) for i in gene[32:]), 2))
+    values.append(int("".join(str(i) for i in gene[:8]), 2))
+    values.append(int("".join(str(i) for i in gene[8:16]), 2))
+    values.append(int("".join(str(i) for i in gene[16:24]), 2))
+    values.append(int("".join(str(i) for i in gene[24:32]), 2))
+    values.append(int("".join(str(i) for i in gene[32:40]), 2))
     return values
 
 
@@ -49,25 +58,35 @@ def individual_from_gene_to_value(gene):
 def creat_initial_population(population_size):
     population = []
     while len(population)<population_size:
-        x1 = np.random.random_integers(0,5000)
-        x2 = np.random.random_integers(0,15000)
-        x3 = np.random.random_integers(0,3000)
+        x1 = np.random.random_integers(0,50)
+        x2 = np.random.random_integers(0,90)
+        x3 = np.random.random_integers(0,70)
+        x4 = np.random.random_integers(0, 80)
+        x5 = np.random.random_integers(0, 70)
 
-        temp = x1+x2+x3
-        if temp>=20000 and temp<=22000:
-            population.append(individual_from_values_to_gene([x1,x2,x3]))
+        temp = x1+x2+x3+x4+x5
+        if temp>=200 and temp<=250:
+            population.append(([x1,x2,x3,x4,x5]))
 
     return np.array(population)
 
 # 计算目标函数的值
+# Z_1=15y_1+10y_2+6y_3+5y_4+4y_5+ 5x_1+5x_2+4x_3+10x_4+10x_5
+# Z_2= 0.05x_1+0.05x_2+0.1x_3+0.1x_4+0.1x_5
+# Z_3= 10x_1+5x_2+8x_3+3x_4+8x_5
 def calculate_objects_value(population):
     objects = []
     size=population.shape[0]
     for i in range(size):
-        x = individual_from_gene_to_value(population[i])
-        Z1 = 6*x[0]+7.5*x[1]+5.2*x[2]
-        Z2 = 0.05*x[0]+0.02*x[1]+0.09*x[2]
-        objects.append([Z1,Z2])
+        x = population[i]
+        y = []
+        for j in range(len(x)):
+            if x[j]>0:y.append(1)
+            else:y.append(0)
+        Z1 = 15*y[0]+10*y[1]+6*y[2]+5*y[3]+4*y[4]+5*x[0]+5*x[1]+4*x[2]+10*x[3]+10*x[4]
+        Z2 = 0.05*x[0]+0.05*x[1]+0.1*x[2]+0.1*x[3]+0.1*x[4]
+        Z3 = 10*x[0]+5*x[1]+8*x[2]+3*x[3]+8*x[4]
+        objects.append([Z1,Z2,Z3])
     return np.array(objects)
 
 # 基于目标函数的值，计算拥挤距离
@@ -168,13 +187,15 @@ def build_pareto_population(population, objects, minimum_population_size, maximu
 
 # 父代交叉产生子代
 def crossover(parent_1, parent_2):
-    chromosome_length = len(parent_1)
+    gene_parent_1 = individual_from_values_to_gene(parent_1)
+    gene_parent_2 = individual_from_values_to_gene(parent_2)
+    chromosome_length = len(gene_parent_1)
     crossover_point = rn.randint(1, chromosome_length - 1)
-    child_1 = np.hstack((parent_1[0:crossover_point],
-                         parent_2[crossover_point:]))
-    child_2 = np.hstack((parent_2[0:crossover_point],
-                         parent_1[crossover_point:]))
-    return child_1, child_2
+    gene_child_1 = np.hstack((gene_parent_1[0:crossover_point],
+                         gene_parent_2[crossover_point:]))
+    gene_child_2 = np.hstack((gene_parent_2[0:crossover_point],
+                         gene_parent_1[crossover_point:]))
+    return individual_from_gene_to_value(gene_child_1), individual_from_gene_to_value(gene_child_2)
 
 # 种群变异
 def mutate(population, mutation_probability):
@@ -183,14 +204,13 @@ def mutate(population, mutation_probability):
     population[random_mutation_boolean] = np.logical_not(population[random_mutation_boolean])
     return population
 
-def is_right_individual(gene):
-    values = individual_from_gene_to_value(gene)
+def is_right_individual(values):
     temp = sum(values)
-    if values[0]<=5000 and values[1]<=15000 and values[2]<=3000 and temp>20000 and temp<22000:
+    if values[0]<=50 and values[1]<=90 and values[2]<=70 and values[3]<=80 and values[4]<=70 and temp>200 and temp<250:
         return True
     return False
 
-# 交叉变异，扩张种群
+# 实属编码，基因数量太小，只通过变异来扩张种群
 def breed_population(population):
     new_population = []
     population_size = population.shape[0]
@@ -207,25 +227,41 @@ def breed_population(population):
     return population
 
 # main
-start_population_size = 5000
+start_population_size = 500
 maximum_generation = 100
-minimum_end_population_size = 500
-maximum_end_population_size = 600
+minimum_end_population_size = 250
+maximum_end_population_size = 300
 
 population = creat_initial_population(start_population_size)
+
+objects = calculate_objects_value(population)
+ax = plt.figure().add_subplot(111, projection = '3d')
+x = objects[:, 0]
+y = objects[:, 1]
+z = objects[:, 2]
+ax.scatter(x, y, z, marker='.')
+ax.set_xlabel('Cost')
+ax.set_ylabel('Rejection')
+ax.set_zlabel('Lead time')
 
 for generation in range(maximum_generation):
     population = breed_population(population)
     objects = calculate_objects_value(population)
     population = build_pareto_population(
         population, objects, minimum_end_population_size, maximum_end_population_size)
-# 画图
+
+
+objects = calculate_objects_value(population)
+ax = plt.figure().add_subplot(111, projection = '3d')
 x = objects[:, 0]
 y = objects[:, 1]
-plt.xlabel('cost')
-plt.ylabel('Quantity of waste')
+z = objects[:, 2]
+ax.scatter(x, y, z, marker='.')
 
-plt.scatter(x, y)
-plt.savefig('pareto.png')
+ax.set_xlabel('Cost')
+ax.set_ylabel('Rejection')
+ax.set_zlabel('Lead time')
+
 plt.show()
+
 
