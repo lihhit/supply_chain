@@ -29,7 +29,55 @@ plt.rcParams['axes.unicode_minus']=False
 # 有中文出现的情况，需要u'内容'
 from mpl_toolkits.mplot3d import Axes3D as p3d
 
+def plot_3D_figure(objects):
+    ax = plt.figure().add_subplot(111, projection='3d')
+    x = objects[:, 0]
+    y = objects[:, 1]
+    z = objects[:, 2]
+    ax.scatter(x, y, z, c='b', marker='.')
 
+    ax.set_xlabel(u"成本(USD)")
+    ax.set_ylabel(u'废品数(吨)')
+    ax.set_zlabel(u'延迟交货数(吨)')
+
+def make_xlsx(filename, population, objects):
+    import xlsxwriter
+    size = population.shape[0]
+    wb = xlsxwriter.Workbook(filename)
+    ws = wb.add_worksheet()
+    header = wb.add_format({'bold': True})
+    header.set_align('center')
+    header.set_border(1)
+    header.set_bottom(5)
+    normal = wb.add_format()
+    normal.set_align('center')
+    normal.set_border(1)
+
+    ws.write(0, 0, u"供应商1", header)
+    ws.write(0, 1, u"供应商2", header)
+    ws.write(0, 2, u"供应商3", header)
+    ws.write(0, 3, u"供应商4", header)
+    ws.write(0, 4, u"供应商5", header)
+    ws.write(0, 5, u"成本(USD)", header)
+    ws.write(0, 6, u"废品数(吨)", header)
+    ws.write(0, 7, u"延迟交货数(吨)", header)
+
+    for idx in range(0, size):
+        raw = idx + 1
+        ws.write(raw, 0, population[idx][0], normal)
+        ws.write(raw, 1, population[idx][1], normal)
+        ws.write(raw, 2, population[idx][2], normal)
+        ws.write(raw, 3, population[idx][3], normal)
+        ws.write(raw, 4, population[idx][4], normal)
+        ws.write(raw, 5, objects[idx][0], normal)
+        ws.write(raw, 6, objects[idx][1], normal)
+        ws.write(raw, 7, objects[idx][2], normal)
+
+    widths = [8, 8, 8, 8, 8, 16, 16, 16]
+    for i in range(len(widths)):
+        ws.set_column('%c:%c' % (chr(65 + i), chr(65 + i)), widths[i])
+
+    wb.close()
 
 
 def individual_from_values_to_gene(values):
@@ -83,10 +131,12 @@ def calculate_objects_value(population):
     size = population.shape[0]
     for i in range(size):
         x = population[i]
+        '''
         y = []
         for j in range(0,5):
             if x[j]>0: y.append(1)
             else: y.append(0)
+        '''
         Z1 = 200*x[0]+270*x[1]+330*x[2]+400*x[3]+350*x[4]
         Z2 = 0.01*x[0]+0.008*x[1]+0.006*x[2]+0.002*x[3]+0.004*x[4]
         Z3 = 0.09*x[0]+0.07*x[1]+0.04*x[2]+0.02*x[3]+0.03*x[4]
@@ -189,11 +239,28 @@ def build_pareto_population(population, objects, minimum_population_size,
         unselected_set = set(all_population_idx) - set(pareto_front)
         unselected_population_idx = np.array(list(unselected_set))
     population = population[pareto_front.astype(int)]
+    """
+    plot_3D_figure(objects)
+    ax = plt.figure().add_subplot(111, projection='3d')
+    x = objects[pareto_front.astype(int)][:, 0]
+    y = objects[pareto_front.astype(int)][:, 1]
+    z = objects[pareto_front.astype(int)][:, 2]
+    ax.scatter(x, y, z, c='b', marker='.')
+
+    x = objects[unselected_population_idx][:, 0]
+    y = objects[unselected_population_idx][:, 1]
+    z = objects[unselected_population_idx][:, 2]
+    ax.scatter(x, y, z, c='r', marker='.')
+
+    ax.set_xlabel(u"成本(USD)")
+    ax.set_ylabel(u'废品数(吨)')
+    ax.set_zlabel(u'延迟交货数(吨)')
+    """
     return population
 
 
 # 父代交叉产生子代
-def crossover(parent_1, parent_2):
+def crossover_by_binary(parent_1, parent_2):
     gene_parent_1 = individual_from_values_to_gene(parent_1)
     gene_parent_2 = individual_from_values_to_gene(parent_2)
     chromosome_length = len(gene_parent_1)
@@ -205,6 +272,12 @@ def crossover(parent_1, parent_2):
     return individual_from_gene_to_value(
         gene_child_1), individual_from_gene_to_value(gene_child_2)
 
+# 父代交叉产生子代
+def crossover(parent_1, parent_2):
+    rate = rn.random()
+    child_1 = np.rint(rate * parent_1 + (1 - rate) * parent_2)
+    child_2 = np.rint(rate * parent_2 + (1 - rate) * parent_1)
+    return child_1, child_2
 
 # 种群变异
 def mutate(population, mutation_probability):
@@ -219,8 +292,12 @@ def mutate(population, mutation_probability):
 
 def is_right_individual(values):
     temp = sum(values)
-    if 10<=values[0] <= 80 and 10<=values[1] <= 50 and 5<=values[2] <= 20 \
-            and 10<=values[3] <= 50 and 5<=values[4] <= 30 and 140 <= temp <= 160:
+    if (10<=values[0] <= 80 or values[0]==0) and \
+       (10<=values[1] <= 50 or values[1]==0) and \
+       (5<=values[2] <= 20  or values[2]==0) and \
+       (10<=values[3] <= 50 or values[3]==0) and \
+       (5<=values[4] <= 30  or values[4]==0) and \
+       140 <= temp <= 160:
         return True
     return False
 
@@ -240,27 +317,21 @@ def breed_population(population):
     if new_population:
         population = np.vstack((population, np.array(new_population)))
     population = np.unique(population, axis=0)
+    print("breed population size:" + str(population.shape[0]))
     return population
+
 
 
 # main
 start_population_size = 500
-maximum_generation = 50
+maximum_generation = 30
 minimum_end_population_size = 450
 maximum_end_population_size = 550
 
 population = creat_initial_population(start_population_size)
 
 objects = calculate_objects_value(population)
-
-ax = plt.figure().add_subplot(111, projection='3d')
-x = objects[:, 0]
-y = objects[:, 1]
-z = objects[:, 2]
-ax.scatter(x, y, z, marker='.')
-ax.set_xlabel(u"成本(USD)")
-ax.set_ylabel(u'废品数(吨)')
-ax.set_zlabel(u'延迟交货数(吨)')
+plot_3D_figure(objects)
 
 for generation in range(maximum_generation):
     population = breed_population(population)
@@ -270,54 +341,8 @@ for generation in range(maximum_generation):
                                          maximum_end_population_size)
 
 objects = calculate_objects_value(population)
-
-import xlsxwriter
-size = population.shape[0]
-wb = xlsxwriter.Workbook("/Users/bryli/PycharmProjects/supply_chain/single_data.xlsx")
-ws = wb.add_worksheet()
-header = wb.add_format({'bold': True})
-header.set_align('center')
-header.set_border(1)
-header.set_bottom(5)
-normal = wb.add_format()
-normal.set_align('center')
-normal.set_border(1)
-
-
-ws.write(0,0,u"供应商1",header)
-ws.write(0,1,u"供应商2",header)
-ws.write(0,2,u"供应商3",header)
-ws.write(0,3,u"供应商4",header)
-ws.write(0,4,u"供应商5",header)
-ws.write(0,5,u"成本(USD)",header)
-ws.write(0,6,u"废品数(吨)",header)
-ws.write(0,7,u"延迟交货数(吨)",header)
-
-for idx in range(0,size):
-    raw = idx+1
-    ws.write(raw, 0, population[idx][0],normal)
-    ws.write(raw, 1, population[idx][1],normal)
-    ws.write(raw, 2, population[idx][2],normal)
-    ws.write(raw, 3, population[idx][3],normal)
-    ws.write(raw, 4, population[idx][4],normal)
-    ws.write(raw, 5, objects[idx][0],normal)
-    ws.write(raw, 6, objects[idx][1],normal)
-    ws.write(raw, 7, objects[idx][2],normal)
-
-widths = [8, 8, 8, 8, 8, 16, 16,16]
-for i in range(len(widths)):
-    ws.set_column('%c:%c' % (chr(65 + i), chr(65 + i)), widths[i])
-
-wb.close()
-ax = plt.figure().add_subplot(111, projection='3d')
-x = objects[:, 0]
-y = objects[:, 1]
-z = objects[:, 2]
-ax.scatter(x, y, z, marker='.')
-
-ax.set_xlabel(u"成本(USD)")
-ax.set_ylabel(u'废品数(吨)')
-ax.set_zlabel(u'延迟交货数(吨)')
+make_xlsx("/Users/bryli/PycharmProjects/supply_chain/single_data.xlsx", population, objects)
+plot_3D_figure(objects)
 
 plt.show()
 
